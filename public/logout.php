@@ -1,0 +1,2 @@
+<?php
+// Logs out (redirect)

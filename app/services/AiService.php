@@ -1,0 +1,2 @@
+<?php
+// calls AI API

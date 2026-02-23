@@ -1,0 +1,2 @@
+<?php
+// history list handler

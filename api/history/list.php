@@ -1,0 +1,2 @@
+<?php
+// calls HistoryController->list()

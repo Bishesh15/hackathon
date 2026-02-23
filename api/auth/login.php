@@ -1,0 +1,2 @@
+<?php
+// calls AuthController->login()

@@ -1,0 +1,2 @@
+<?php
+// Notes module UI

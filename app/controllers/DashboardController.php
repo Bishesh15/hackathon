@@ -1,0 +1,2 @@
+<?php
+// dashboard stats handler

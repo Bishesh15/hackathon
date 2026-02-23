@@ -1,0 +1,2 @@
+<?php
+// calls DashboardController->summary()

@@ -1,0 +1,2 @@
+<?php
+// calls ModuleController->run()
