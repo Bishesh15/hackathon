@@ -12,12 +12,21 @@ final class AiService
      */
     public static function chat(string $systemPrompt, string $userMessage): string
     {
+        return self::chatWithMessages([
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user',   'content' => $userMessage],
+        ]);
+    }
+
+    /**
+     * Send a multi-message chat completion (for continuous conversation).
+     * $messages = [['role'=>'system','content'=>'...'], ['role'=>'user','content'=>'...'], ...]
+     */
+    public static function chatWithMessages(array $messages): string
+    {
         $payload = [
-            'model'    => Config::aiModel(),
-            'messages' => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user',   'content' => $userMessage],
-            ],
+            'model'       => Config::aiModel(),
+            'messages'    => $messages,
             'temperature' => 0.7,
         ];
 

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 final class PromptFactory
 {
+    private static string $eduGuard = 'You MUST ONLY answer questions related to school and high-school education. If the user asks something unrelated to education, politely decline and ask them to provide an educational topic. ';
+
     // ── Module prompts ────────────────────────────────
 
     public static function tutor(string $topic): array
     {
         return [
-            'system' => 'You are a friendly, expert tutor. Explain concepts clearly with examples. Use markdown formatting.',
+            'system' => self::$eduGuard . 'You are a friendly, expert tutor. Explain concepts clearly with examples. Use markdown formatting.',
             'user'   => "Teach me about: $topic",
         ];
     }
@@ -17,7 +19,7 @@ final class PromptFactory
     public static function notes(string $topic): array
     {
         return [
-            'system' => 'You are an academic note generator. Create concise, well-structured study notes with headings, bullet points, and key takeaways. Use markdown.',
+            'system' => self::$eduGuard . 'You are an academic note generator. Create concise, well-structured study notes with headings, bullet points, and key takeaways. Use markdown.',
             'user'   => "Generate study notes for: $topic",
         ];
     }
@@ -25,7 +27,7 @@ final class PromptFactory
     public static function quiz(string $topic): array
     {
         return [
-            'system' => 'You are a quiz generator. Create 5 multiple-choice questions with 4 options each and indicate the correct answer. Format in markdown with numbering.',
+            'system' => self::$eduGuard . 'You are a quiz generator. Create 5 multiple-choice questions with 4 options each and indicate the correct answer. Format in markdown with numbering.',
             'user'   => "Create a quiz about: $topic",
         ];
     }

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../core/Helpers.php';
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../repositories/ActivityRepository.php';
 require_once __DIR__ . '/../repositories/AttemptRepository.php';
+require_once __DIR__ . '/../repositories/ConversationRepository.php';
 
 final class DashboardController
 {
@@ -15,16 +16,17 @@ final class DashboardController
         Session::requireAuthApi();
         $uid = Session::userId();
 
-        $activities = new ActivityRepository();
-        $attempts   = new AttemptRepository();
+        $activities    = new ActivityRepository();
+        $attempts      = new AttemptRepository();
+        $conversations = new ConversationRepository();
 
         json_success([
             'stats' => [
                 'total_activities' => $activities->countByUser($uid),
-                'tutor_sessions'   => $activities->countByModule($uid, 'tutor'),
+                'tutor_sessions'   => $conversations->countByUser($uid),
                 'notes_generated'  => $activities->countByModule($uid, 'notes'),
-                'quizzes_taken'    => $activities->countByModule($uid, 'quiz'),
-                'tests_attempted'  => $attempts->totalAttempts($uid),
+                'quizzes_taken'    => $attempts->totalAttempts($uid),
+                'tests_attempted'  => $activities->countByModule($uid, 'test'),
                 'avg_score'        => $attempts->avgScore($uid),
             ],
         ]);

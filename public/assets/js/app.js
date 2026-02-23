@@ -1,11 +1,12 @@
 /* ================================================================
-   Hackathon Learning App – Frontend JS (jQuery)
+   LearnAI – Frontend JS (jQuery)  v2
    ================================================================ */
 
 var App = (function ($) {
     'use strict';
 
     var API = '../api';
+    var chatConversationId = 0;
 
     // ── Helpers ──────────────────────────────────────────────────
 
@@ -23,17 +24,55 @@ var App = (function ($) {
         return $.ajax({ url: API + url, method: 'GET', dataType: 'json' });
     }
 
-    function showMsg(text, isError) {
-        var cls = isError ? 'error' : 'success';
-        $('#form-msg').attr('class', 'msg ' + cls).text(text);
+    function showMsg(selector, text, isError) {
+        var el = $(selector);
+        if (isError) {
+            el.html('<div class="msg msg-error">' + text + '</div>');
+        } else if (text) {
+            el.html('<div class="msg msg-success">' + text + '</div>');
+        } else {
+            el.html('');
+        }
     }
 
     function btnLoading(btn, loading) {
         if (loading) {
-            btn.data('orig', btn.html()).prop('disabled', true).html('<span class="spinner"></span> Please wait…');
+            btn.data('orig', btn.html()).prop('disabled', true)
+               .html('<span class="spinner"></span> Please wait…');
         } else {
             btn.prop('disabled', false).html(btn.data('orig'));
         }
+    }
+
+    // Simple markdown→HTML (bold, italic, code, lists, headings, links)
+    function md(text) {
+        if (!text) return '';
+        var h = text
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            // Code blocks
+            .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+            // Inline code
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            // Bold
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            // Italic
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            // Headings
+            .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+            .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+            .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+            // Unordered list
+            .replace(/^\- (.+)$/gm, '<li>$1</li>')
+            .replace(/^\* (.+)$/gm, '<li>$1</li>')
+            // Numbered list
+            .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+            // Wrap consecutive <li> in <ul>
+            .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+            // Paragraphs (double newline)
+            .replace(/\n\n/g, '</p><p>')
+            // Single newline → <br>
+            .replace(/\n/g, '<br>');
+        return '<p>' + h + '</p>';
     }
 
     // ── Auth ─────────────────────────────────────────────────────
@@ -48,10 +87,10 @@ var App = (function ($) {
             email: $(this).find('[name="email"]').val(),
             password: $(this).find('[name="password"]').val()
         }).done(function (r) {
-            showMsg(r.message, false);
+            showMsg('#form-msg', r.message, false);
             setTimeout(function () { location.href = 'dashboard.php'; }, 400);
         }).fail(function (xhr) {
-            showMsg(xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
+            showMsg('#form-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
             btnLoading(btn, false);
         });
     });
@@ -65,15 +104,45 @@ var App = (function ($) {
             email: $(this).find('[name="email"]').val(),
             password: $(this).find('[name="password"]').val()
         }).done(function (r) {
-            showMsg(r.message, false);
+            showMsg('#form-msg', r.message, false);
             setTimeout(function () { location.href = 'dashboard.php'; }, 400);
         }).fail(function (xhr) {
-            showMsg(xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
+            showMsg('#form-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
             btnLoading(btn, false);
         });
     });
 
-    // ── Module (tutor / notes / quiz) ────────────────────────────
+    // ── Dashboard ────────────────────────────────────────────────
+
+    function loadDashboard() {
+        get('/dashboard/summary.php').done(function (r) {
+            var s = r.stats;
+            $('#s-activities').text(s.total_activities);
+            $('#s-tutor').text(s.tutor_sessions);
+            $('#s-notes').text(s.notes_generated);
+            $('#s-quiz').text(s.quizzes_taken);
+            $('#s-tests').text(s.tests_attempted);
+            $('#s-avg').text(s.avg_score + '%');
+        });
+
+        // Hero search → tutor
+        $('#hero-search-btn').on('click', function () {
+            var q = $('#hero-search').val().trim();
+            if (q) location.href = 'tutor.php?q=' + encodeURIComponent(q);
+        });
+        $('#hero-search').on('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                $('#hero-search-btn').click();
+            }
+        });
+        // Quick topics
+        $(document).on('click', '.quick-topic', function () {
+            location.href = 'tutor.php?q=' + encodeURIComponent($(this).data('topic'));
+        });
+    }
+
+    // ── Notes module ─────────────────────────────────────────────
 
     $(document).on('submit', '#module-form', function (e) {
         e.preventDefault();
@@ -87,95 +156,374 @@ var App = (function ($) {
 
         post('/module/run.php', { module: module, topic: topic })
             .done(function (r) {
-                $('#module-result').html(r.content).show();
-                showMsg('', false);
+                $('#module-result').html(md(r.content)).show();
+                showMsg('#form-msg', '', false);
             })
             .fail(function (xhr) {
-                showMsg(xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
+                showMsg('#form-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
             })
             .always(function () { btnLoading(btn, false); });
     });
 
-    // ── Test: Create ─────────────────────────────────────────────
+    // ================================================================
+    // CHAT (AI Tutor – ChatGPT-style continuous conversation)
+    // ================================================================
+
+    function initChat(conversationId) {
+        chatConversationId = conversationId || 0;
+
+        // If URL has ?q= param, auto-send first message
+        var params = new URLSearchParams(window.location.search);
+        var initQ = params.get('q');
+
+        if (chatConversationId > 0) {
+            // Load existing conversation
+            loadConversation(chatConversationId);
+        } else if (initQ) {
+            sendChatMessage(initQ);
+        }
+
+        // Send button
+        $('#chat-send').on('click', function () {
+            var msg = $('#chat-input').val().trim();
+            if (msg) sendChatMessage(msg);
+        });
+
+        // Enter to send (Shift+Enter for newline)
+        $('#chat-input').on('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                var msg = $(this).val().trim();
+                if (msg) sendChatMessage(msg);
+            }
+        });
+
+        // Auto-resize textarea
+        $('#chat-input').on('input', function () {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+        });
+    }
+
+    function sendChatMessage(message) {
+        // Hide welcome
+        $('#chat-welcome').hide();
+
+        // Append user bubble
+        appendChatBubble('user', message);
+        $('#chat-input').val('').css('height', 'auto');
+        $('#chat-send').prop('disabled', true);
+
+        // Show typing indicator
+        var typingHtml = '<div class="chat-message assistant" id="typing-indicator">'
+            + '<div class="msg-avatar">AI</div>'
+            + '<div class="msg-content"><div class="msg-bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div></div>'
+            + '</div>';
+        $('#chat-messages').append(typingHtml);
+        scrollChat();
+
+        post('/chat/send.php', {
+            message: message,
+            conversation_id: chatConversationId
+        }).done(function (r) {
+            chatConversationId = r.conversation_id;
+            $('#typing-indicator').remove();
+            appendChatBubble('assistant', r.reply);
+            scrollChat();
+        }).fail(function (xhr) {
+            $('#typing-indicator').remove();
+            appendChatBubble('assistant', 'Sorry, something went wrong. Please try again.');
+        }).always(function () {
+            $('#chat-send').prop('disabled', false);
+            $('#chat-input').focus();
+        });
+    }
+
+    function appendChatBubble(role, content) {
+        var avatar = role === 'assistant' ? 'AI' : 'You';
+        var bubbleContent = role === 'assistant' ? md(content) : $('<div>').text(content).html();
+        var html = '<div class="chat-message ' + role + '">'
+            + '<div class="msg-avatar">' + avatar + '</div>'
+            + '<div class="msg-content"><div class="msg-bubble">' + bubbleContent + '</div></div>'
+            + '</div>';
+        $('#chat-messages').append(html);
+        scrollChat();
+    }
+
+    function loadConversation(convId) {
+        get('/chat/messages.php?id=' + convId).done(function (r) {
+            $('#chat-welcome').hide();
+            $('#chat-messages').empty();
+            $.each(r.messages, function (i, msg) {
+                appendChatBubble(msg.role, msg.content);
+            });
+            scrollChat();
+        });
+    }
+
+    function scrollChat() {
+        var el = document.getElementById('chat-messages');
+        if (el) el.scrollTop = el.scrollHeight;
+    }
+
+    // ================================================================
+    // QUIZ (MCQ – was Test, now renamed)
+    // ================================================================
+
+    var quizState = { testId: 0, questions: [] };
+
+    $(document).on('submit', '#quiz-form', function (e) {
+        e.preventDefault();
+        var btn = $(this).find('button[type="submit"]');
+        btnLoading(btn, true);
+
+        var topic = $('#quiz-topic').val();
+        var count = parseInt($('#quiz-count').val(), 10);
+
+        post('/test/create.php', { topic: topic, count: count })
+            .done(function (r) {
+                quizState.testId = r.test_id;
+                quizState.questions = r.questions;
+                renderQuizPaper(r.questions, r.topic);
+            })
+            .fail(function (xhr) {
+                showMsg('#quiz-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
+            })
+            .always(function () { btnLoading(btn, false); });
+    });
+
+    function renderQuizPaper(questions, topic) {
+        var html = '';
+        $.each(questions, function (i, q) {
+            html += '<div class="question-card card">';
+            html += '<div class="q-number">Question ' + (i + 1) + '</div>';
+            html += '<div class="q-text">' + q.question + '</div>';
+            $.each(q.options, function (j, opt) {
+                var letter = String.fromCharCode(65 + j);
+                html += '<label class="option-label" data-q="' + i + '" data-val="' + letter + '">';
+                html += '<input type="radio" name="q' + i + '" value="' + letter + '"> ' + opt;
+                html += '</label>';
+            });
+            html += '</div>';
+        });
+
+        $('#quiz-title').text('Quiz: ' + topic);
+        $('#quiz-questions').html(html);
+        $('#quiz-setup').hide();
+        $('#quiz-paper').show();
+    }
+
+    // Highlight selected option
+    $(document).on('change', '.option-label input[type="radio"]', function () {
+        var qIndex = $(this).closest('.option-label').data('q');
+        $('[data-q="' + qIndex + '"]').removeClass('selected');
+        $(this).closest('.option-label').addClass('selected');
+    });
+
+    $(document).on('click', '#quiz-submit-btn', function () {
+        var btn = $(this);
+        btnLoading(btn, true);
+
+        var answers = {};
+        quizState.questions.forEach(function (q, i) {
+            answers[i] = $('input[name="q' + i + '"]:checked').val() || '';
+        });
+
+        post('/test/submit.php', { test_id: quizState.testId, answers: answers })
+            .done(function (r) {
+                sessionStorage.setItem('last_result', JSON.stringify(r));
+                sessionStorage.setItem('attempt_id', r.attempt_id);
+                showQuizResult(r);
+            })
+            .fail(function (xhr) {
+                showMsg('#quiz-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
+            })
+            .always(function () { btnLoading(btn, false); });
+    });
+
+    function showQuizResult(r) {
+        $('#quiz-paper').hide();
+        $('#quiz-score').text(r.percentage + '%');
+        $('#quiz-score-label').text(r.score + ' / ' + r.total + ' correct');
+        $('#quiz-result').show();
+    }
+
+    // Quiz analysis
+    $(document).on('click', '#quiz-analysis-btn', function () {
+        var btn = $(this);
+        btnLoading(btn, true);
+        var attemptId = parseInt(sessionStorage.getItem('attempt_id'), 10);
+
+        post('/analysis/get.php', { attempt_id: attemptId })
+            .done(function (r) {
+                var a = r.analysis;
+                var html = '';
+                if (a.weaknesses && a.weaknesses.length) {
+                    html += '<h3>Weaknesses</h3><ul>';
+                    $.each(a.weaknesses, function (i, w) { html += '<li>' + w + '</li>'; });
+                    html += '</ul>';
+                }
+                if (a.insights && a.insights.length) {
+                    html += '<h3>Insights</h3><ul>';
+                    $.each(a.insights, function (i, w) { html += '<li>' + w + '</li>'; });
+                    html += '</ul>';
+                }
+                if (a.recommendations && a.recommendations.length) {
+                    html += '<h3>Recommendations</h3><ul>';
+                    $.each(a.recommendations, function (i, w) { html += '<li>' + w + '</li>'; });
+                    html += '</ul>';
+                }
+                $('#quiz-analysis').html(html).show();
+            })
+            .fail(function (xhr) {
+                alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting analysis');
+            })
+            .always(function () { btnLoading(btn, false); });
+    });
+
+    // Quiz study plan
+    $(document).on('click', '#quiz-plan-btn', function () {
+        var btn = $(this);
+        btnLoading(btn, true);
+        var attemptId = parseInt(sessionStorage.getItem('attempt_id'), 10);
+
+        post('/plan/get.php', { attempt_id: attemptId })
+            .done(function (r) {
+                var p = r.plan;
+                var html = '<h3>' + (p.title || 'Study Plan') + '</h3>';
+                if (p.days && p.days.length) {
+                    $.each(p.days, function (i, day) {
+                        html += '<div style="margin-bottom:1rem;"><strong>Day ' + day.day + ':</strong> ' + day.focus + '<ul>';
+                        $.each(day.tasks || [], function (j, t) { html += '<li>' + t + '</li>'; });
+                        html += '</ul></div>';
+                    });
+                }
+                $('#quiz-analysis').html(html).show();
+            })
+            .fail(function (xhr) {
+                alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting plan');
+            })
+            .always(function () { btnLoading(btn, false); });
+    });
+
+    // Quiz retry
+    $(document).on('click', '#quiz-retry-btn', function () {
+        $('#quiz-result').hide();
+        $('#quiz-analysis').hide();
+        $('#quiz-setup').show();
+        $('#quiz-form')[0].reset();
+    });
+
+    // ================================================================
+    // TEST CENTER (Long-answer + Image upload)
+    // ================================================================
+
+    var examState = { examId: 0, questions: [] };
 
     $(document).on('submit', '#test-create-form', function (e) {
         e.preventDefault();
         var btn = $(this).find('button[type="submit"]');
         btnLoading(btn, true);
 
-        var topic = $(this).find('[name="topic"]').val();
-        var count = parseInt($(this).find('[name="count"]').val(), 10);
+        var topic = $('#test-topic').val();
+        var count = parseInt($('#test-count').val(), 10);
 
-        post('/test/create.php', { topic: topic, count: count })
+        post('/exam/create.php', { topic: topic, count: count })
             .done(function (r) {
-                sessionStorage.setItem('test_id', r.test_id);
-                sessionStorage.setItem('test_topic', r.topic);
-                renderTestPaper(r.questions, r.test_id);
+                examState.examId = r.exam_id;
+                examState.questions = r.questions;
+                renderTestPaper(r.questions, r.topic);
             })
             .fail(function (xhr) {
-                showMsg(xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
-                btnLoading(btn, false);
-            });
+                showMsg('#test-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
+            })
+            .always(function () { btnLoading(btn, false); });
     });
 
-    function renderTestPaper(questions, testId) {
-        var html = '<form id="test-submit-form" class="card"><h2>Answer All Questions</h2>';
+    function renderTestPaper(questions, topic) {
+        var html = '';
         $.each(questions, function (i, q) {
-            html += '<div class="question-block"><h4>Q' + (i + 1) + '. ' + q.question + '</h4>';
-            $.each(q.options, function (j, opt) {
-                var letter = String.fromCharCode(65 + j); // A, B, C, D
-                html += '<label class="option-label"><input type="radio" name="q' + i + '" value="' + letter + '" required> ' + opt + '</label>';
-            });
+            html += '<div class="test-question">';
+            html += '<div class="q-text"><strong>Q' + (i + 1) + '.</strong> ' + q.question;
+            if (q.type) html += ' <span style="color:#667eea; font-size:.8rem;">(' + q.type + ')</span>';
+            html += '</div>';
+            html += '<div class="form-group">';
+            html += '<textarea name="answer_' + i + '" placeholder="Write your answer here…" rows="5"></textarea>';
+            html += '</div>';
             html += '</div>';
         });
-        html += '<input type="hidden" name="test_id" value="' + testId + '">';
-        html += '<button type="submit" class="btn btn-primary">Submit Test</button>';
-        html += '<p id="form-msg" class="msg"></p></form>';
 
+        $('#test-title').text('Test: ' + topic);
+        $('#test-questions').html(html);
         $('#test-setup').hide();
-        $('#test-paper').html(html).show();
+        $('#test-paper').show();
     }
 
-    // ── Test: Submit ─────────────────────────────────────────────
 
-    $(document).on('submit', '#test-submit-form', function (e) {
-        e.preventDefault();
-        var btn = $(this).find('button[type="submit"]');
+
+    // Submit test
+    $(document).on('click', '#test-submit-btn', function () {
+        var btn = $(this);
         btnLoading(btn, true);
 
-        var testId = parseInt($(this).find('[name="test_id"]').val(), 10);
-        var answers = {};
-        $(this).find('.question-block').each(function (i) {
-            var val = $(this).find('input[name="q' + i + '"]:checked').val() || '';
-            answers[i] = val;
+        var answers = [];
+        examState.questions.forEach(function (q, i) {
+            var answerText = $('[name="answer_' + i + '"]').val() || '';
+            answers.push({ answer: answerText });
         });
 
-        post('/test/submit.php', { test_id: testId, answers: answers })
+        post('/exam/submit.php', { exam_id: examState.examId, answers: answers })
             .done(function (r) {
-                // Store result in session and redirect
-                sessionStorage.setItem('last_result', JSON.stringify(r));
-                location.href = 'result.php';
+                showTestFeedback(r);
             })
             .fail(function (xhr) {
-                showMsg(xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
-                btnLoading(btn, false);
-            });
+                showMsg('#test-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error', true);
+            })
+            .always(function () { btnLoading(btn, false); });
     });
 
-    // ── Result Page ──────────────────────────────────────────────
+    function showTestFeedback(r) {
+        $('#test-paper').hide();
+        $('#test-score').text(Math.round(r.score) + '%');
+
+        var fb = r.feedback;
+        var html = '';
+        if (fb.questions && fb.questions.length) {
+            $.each(fb.questions, function (i, q) {
+                html += '<div style="margin-bottom:1.5rem; padding:1rem; border-left:4px solid ' + (q.score >= 60 ? '#10b981' : '#ef4444') + '; background:#fafafa; border-radius:0 8px 8px 0;">';
+                html += '<strong>Q' + (i + 1) + ' – Score: ' + q.score + '%</strong><br>';
+                html += '<p>' + q.feedback + '</p>';
+                html += '</div>';
+            });
+        }
+        $('#test-feedback-content').html(html);
+        $('#test-feedback').show();
+    }
+
+    // Test retry
+    $(document).on('click', '#test-retry-btn', function () {
+        $('#test-feedback').hide();
+        $('#test-setup').show();
+        $('#test-create-form')[0].reset();
+    });
+
+    // ================================================================
+    // RESULT PAGE (legacy – for quiz results navigated via URL)
+    // ================================================================
 
     function loadResult() {
         var raw = sessionStorage.getItem('last_result');
         if (!raw) { $('#score-display').text('No result found.'); return; }
 
         var r = JSON.parse(raw);
-        $('#score-display').text(r.score + ' / ' + r.total + '  (' + r.percentage + '%)');
+        $('#score-display').text(r.percentage + '%');
+        $('#score-label').text(r.score + ' / ' + r.total + ' correct');
 
         // Show details
         var html = '';
         $.each(r.details, function (i, d) {
-            var cls = d.is_correct ? 'correct' : 'wrong';
-            html += '<div class="detail-item ' + cls + '">';
+            var borderColor = d.is_correct ? '#10b981' : '#ef4444';
+            html += '<div style="padding:1rem; border-left:4px solid ' + borderColor + '; margin-bottom:.5rem; background:#fafafa; border-radius:0 8px 8px 0;">';
             html += '<strong>Q' + (i + 1) + '.</strong> ' + d.question + '<br>';
             html += 'Your answer: <strong>' + d.given + '</strong> | Correct: <strong>' + d.correct + '</strong>';
             html += '</div>';
@@ -183,7 +531,6 @@ var App = (function ($) {
         $('#details-list').html(html);
         $('#result-details').show();
 
-        // Store attempt_id for analysis/plan
         sessionStorage.setItem('attempt_id', r.attempt_id);
     }
 
@@ -197,17 +544,17 @@ var App = (function ($) {
                 var a = r.analysis;
                 var html = '';
                 if (a.weaknesses && a.weaknesses.length) {
-                    html += '<h4>Weaknesses</h4><ul>';
+                    html += '<h3>Weaknesses</h3><ul>';
                     $.each(a.weaknesses, function (i, w) { html += '<li>' + w + '</li>'; });
                     html += '</ul>';
                 }
                 if (a.insights && a.insights.length) {
-                    html += '<h4>Insights</h4><ul>';
+                    html += '<h3>Insights</h3><ul>';
                     $.each(a.insights, function (i, w) { html += '<li>' + w + '</li>'; });
                     html += '</ul>';
                 }
                 if (a.recommendations && a.recommendations.length) {
-                    html += '<h4>Recommendations</h4><ul>';
+                    html += '<h3>Recommendations</h3><ul>';
                     $.each(a.recommendations, function (i, w) { html += '<li>' + w + '</li>'; });
                     html += '</ul>';
                 }
@@ -228,10 +575,10 @@ var App = (function ($) {
         post('/plan/get.php', { attempt_id: attemptId })
             .done(function (r) {
                 var p = r.plan;
-                var html = '<h4>' + (p.title || 'Study Plan') + '</h4>';
+                var html = '<h3>' + (p.title || 'Study Plan') + '</h3>';
                 if (p.days && p.days.length) {
                     $.each(p.days, function (i, day) {
-                        html += '<div class="question-block"><strong>Day ' + day.day + ':</strong> ' + day.focus + '<ul>';
+                        html += '<div style="margin-bottom:1rem;"><strong>Day ' + day.day + ':</strong> ' + day.focus + '<ul>';
                         $.each(day.tasks || [], function (j, t) { html += '<li>' + t + '</li>'; });
                         html += '</ul></div>';
                     });
@@ -245,53 +592,108 @@ var App = (function ($) {
             .always(function () { btnLoading(btn, false); });
     });
 
-    // ── Dashboard ────────────────────────────────────────────────
-
-    function loadDashboard() {
-        get('/dashboard/summary.php').done(function (r) {
-            var s = r.stats;
-            $('#s-activities').text(s.total_activities);
-            $('#s-tutor').text(s.tutor_sessions);
-            $('#s-notes').text(s.notes_generated);
-            $('#s-quiz').text(s.quizzes_taken);
-            $('#s-tests').text(s.tests_attempted);
-            $('#s-avg').text(s.avg_score + '%');
-        });
-    }
-
-    // ── History ──────────────────────────────────────────────────
+    // ================================================================
+    // HISTORY PAGE
+    // ================================================================
 
     function loadHistory() {
         get('/history/list.php').done(function (r) {
-            // Activities
+            // Conversations
             var html = '';
-            if (r.activities.length === 0) {
-                html = '<p>No activities yet.</p>';
+            if (!r.conversations || r.conversations.length === 0) {
+                html = '<p style="color:#9ca3af; padding:.5rem;">No conversations yet. Start chatting with the AI Tutor!</p>';
             } else {
-                $.each(r.activities, function (i, a) {
-                    html += '<div class="history-item"><span><strong>' + a.module + '</strong> – ' + a.topic + '</span><span>' + a.created_at + '</span></div>';
+                $.each(r.conversations, function (i, c) {
+                    html += '<div class="history-item" data-conv-id="' + c.id + '">';
+                    html += '<div class="h-icon card-icon purple"><span class="material-icons">smart_toy</span></div>';
+                    html += '<div class="h-info">';
+                    html += '<div class="h-title">' + c.title + '</div>';
+                    html += '<div class="h-meta">' + c.message_count + ' messages &middot; ' + c.updated_at + '</div>';
+                    html += '</div>';
+                    html += '<button class="btn-delete" data-del-type="conversation" data-del-id="' + c.id + '" title="Delete"><span class="material-icons">delete</span></button>';
+                    html += '<div class="h-arrow"><span class="material-icons">arrow_forward</span></div>';
+                    html += '</div>';
                 });
             }
-            $('#activity-list').html(html);
+            $('#conv-list').html(html);
 
-            // Attempts
+            // Quiz Attempts
             html = '';
-            if (r.attempts.length === 0) {
-                html = '<p>No test attempts yet.</p>';
+            if (!r.attempts || r.attempts.length === 0) {
+                html = '<p style="color:#9ca3af; padding:.5rem;">No quiz attempts yet.</p>';
             } else {
                 $.each(r.attempts, function (i, a) {
-                    html += '<div class="history-item"><span><strong>' + a.topic + '</strong> – ' + a.score + '/' + a.total + ' (' + a.percentage + '%)</span><span>' + a.created_at + '</span></div>';
+                    html += '<div class="history-item" data-attempt-id="' + a.id + '">';
+                    html += '<div class="h-icon card-icon orange"><span class="material-icons">quiz</span></div>';
+                    html += '<div class="h-info">';
+                    html += '<div class="h-title">' + a.topic + '</div>';
+                    html += '<div class="h-meta">' + a.score + '/' + a.total + ' (' + a.percentage + '%) &middot; ' + a.created_at + '</div>';
+                    html += '</div>';
+                    html += '<button class="btn-delete" data-del-type="attempt" data-del-id="' + a.id + '" title="Delete"><span class="material-icons">delete</span></button>';
+                    html += '</div>';
                 });
             }
             $('#attempt-list').html(html);
         });
     }
 
+    // Delete history item
+    $(document).on('click', '.btn-delete', function (e) {
+        e.stopPropagation(); // don't trigger the conversation click
+        var btn = $(this);
+        var type = btn.data('del-type');
+        var id = btn.data('del-id');
+
+        if (!confirm('Delete this ' + type + '? This cannot be undone.')) return;
+
+        btn.prop('disabled', true).css('opacity', 0.5);
+        post('/history/delete.php', { type: type, id: id })
+            .done(function () {
+                btn.closest('.history-item').fadeOut(300, function () { $(this).remove(); });
+            })
+            .fail(function (xhr) {
+                alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error deleting');
+                btn.prop('disabled', false).css('opacity', 1);
+            });
+    });
+
+    // Click conversation → show chat replay
+    $(document).on('click', '.history-item[data-conv-id]', function () {
+        var convId = $(this).data('conv-id');
+        var title = $(this).find('.h-title').text();
+
+        // Hide list cards, show detail
+        $('.main-content > .card').hide();
+        $('#conv-detail-title').text(title);
+        $('#conv-detail').show();
+
+        // Load messages
+        get('/chat/messages.php?id=' + convId).done(function (r) {
+            var html = '';
+            $.each(r.messages, function (i, msg) {
+                var avatar = msg.role === 'assistant' ? 'AI' : 'You';
+                var bubbleContent = msg.role === 'assistant' ? md(msg.content) : $('<div>').text(msg.content).html();
+                html += '<div class="chat-message ' + msg.role + '">';
+                html += '<div class="msg-avatar">' + avatar + '</div>';
+                html += '<div class="msg-content"><div class="msg-bubble">' + bubbleContent + '</div></div>';
+                html += '</div>';
+            });
+            $('#conv-messages').html(html);
+        });
+    });
+
+    // Back button in conversation detail
+    $(document).on('click', '#conv-back', function () {
+        $('#conv-detail').hide();
+        $('.main-content > .card').show();
+    });
+
     // ── Public API ───────────────────────────────────────────────
     return {
         loadDashboard: loadDashboard,
         loadHistory: loadHistory,
-        loadResult: loadResult
+        loadResult: loadResult,
+        initChat: initChat
     };
 
 })(jQuery);

@@ -83,4 +83,12 @@ final class AttemptRepository
         $stmt->execute(['uid' => $userId]);
         return (int) $stmt->fetchColumn();
     }
+
+    /** Delete an attempt by id + user ownership. */
+    public function delete(int $id, int $userId): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM attempts WHERE id = :id AND user_id = :uid');
+        $stmt->execute(['id' => $id, 'uid' => $userId]);
+        return $stmt->rowCount() > 0;
+    }
 }
