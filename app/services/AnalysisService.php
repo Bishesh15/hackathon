@@ -1,0 +1,2 @@
+<?php
+// weakness detection + insights
