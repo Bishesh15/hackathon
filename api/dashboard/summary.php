@@ -1,2 +1,7 @@
 <?php
-// calls DashboardController->summary()
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../../app/controllers/DashboardController.php';
+
+(new DashboardController())->summary();
