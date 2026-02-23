@@ -29,12 +29,6 @@ Built with PHP, jQuery, MySQL, and the Groq API (Llama 3.3 70B).
 | Auth      | Session-based + Google OAuth 2.0              |
 | Server    | XAMPP (Apache + MySQL)                        |
 
-## Screenshots
-
-| Login | Dashboard | AI Tutor |
-|-------|-----------|----------|
-| Split-screen auth with gradient branding | Stats grid + module cards | Real-time chat interface |
-
 ## Project Structure
 
 ```
