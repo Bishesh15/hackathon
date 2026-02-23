@@ -181,6 +181,3 @@ Key relationships:
 | GET    | `/api/history/list.php`         | Conversations & attempt history  |
 | POST   | `/api/history/delete.php`       | Delete a conversation or attempt |
 
-## License
-
-MIT
