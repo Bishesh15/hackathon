@@ -34,9 +34,11 @@ final class ExamRepository
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch();
         if (!$row) return null;
-        $row['questions'] = json_decode($row['questions'], true);
-        $row['answers']   = $row['answers'] ? json_decode($row['answers'], true) : null;
-        $row['feedback']  = $row['feedback'] ? json_decode($row['feedback'], true) : null;
+        $row['questions']  = json_decode($row['questions'], true);
+        $row['answers']    = $row['answers'] ? json_decode($row['answers'], true) : null;
+        $row['feedback']   = $row['feedback'] ? json_decode($row['feedback'], true) : null;
+        $row['analysis']   = !empty($row['analysis']) ? json_decode($row['analysis'], true) : null;
+        $row['study_plan'] = !empty($row['study_plan']) ? json_decode($row['study_plan'], true) : null;
         return $row;
     }
 
@@ -62,6 +64,30 @@ final class ExamRepository
             'feedback' => json_encode($feedback, JSON_UNESCAPED_UNICODE),
             'score'    => $score,
             'id'       => $examId,
+        ]);
+    }
+
+    /** Save analysis for an exam. */
+    public function saveAnalysis(int $examId, array $analysis): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE exams SET analysis = :analysis WHERE id = :id'
+        );
+        $stmt->execute([
+            'analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
+            'id'       => $examId,
+        ]);
+    }
+
+    /** Save study plan for an exam. */
+    public function saveStudyPlan(int $examId, array $plan): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE exams SET study_plan = :plan WHERE id = :id'
+        );
+        $stmt->execute([
+            'plan' => json_encode($plan, JSON_UNESCAPED_UNICODE),
+            'id'   => $examId,
         ]);
     }
 

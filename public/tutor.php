@@ -17,24 +17,36 @@ $conversationId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 <div class="app-layout">
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
-    <main class="main-content" style="padding: 0 2rem;">
-        <div class="chat-container">
-            <!-- Chat messages area -->
-            <div class="chat-messages" id="chat-messages">
-                <!-- Welcome message shown when no conversation -->
-                <div id="chat-welcome" class="home-hero" style="padding-top:3rem;">
-                    <h1><span class="material-icons" style="vertical-align:middle">smart_toy</span> AI Tutor</h1>
-                    <p>Ask me anything about your school or high-school subjects. I'll explain it step by step!</p>
+    <main class="main-content tutor-layout" style="padding: 0;">
+        <!-- Left: Chat -->
+        <div class="tutor-chat-panel">
+            <div class="chat-container">
+                <div class="chat-messages" id="chat-messages">
+                    <div id="chat-welcome" class="home-hero" style="padding-top:3rem;">
+                        <h1><span class="material-icons" style="vertical-align:middle">smart_toy</span> AI Tutor</h1>
+                        <p>Ask me anything about your school or high-school subjects. I'll explain it step by step!</p>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <div class="chat-input-wrapper">
+                        <textarea id="chat-input" placeholder="Type your question here…" rows="1"></textarea>
+                        <button class="chat-send-btn" id="chat-send" title="Send"><span class="material-icons">send</span></button>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Chat input area -->
-            <div class="chat-input-area">
-                <div class="chat-input-wrapper">
-                    <textarea id="chat-input" placeholder="Type your question here…" rows="1"></textarea>
-                    <button class="chat-send-btn" id="chat-send" title="Send"><span class="material-icons">send</span></button>
-                </div>
+        <!-- Right: Notepad -->
+        <div class="tutor-notes-panel">
+            <div class="notes-panel-header">
+                <h3><span class="material-icons" style="vertical-align:middle;font-size:1.2rem">edit_note</span> Notepad</h3>
+                <button class="btn btn-primary" id="save-tutor-note" style="padding:.4rem 1rem;font-size:.82rem;">
+                    <span class="material-icons" style="font-size:1rem;vertical-align:middle">save</span> Save
+                </button>
             </div>
+            <input type="text" id="tutor-note-title" class="note-title-input" placeholder="Note title…">
+            <textarea id="tutor-note-content" class="note-content-textarea" placeholder="Take notes here while chatting with your AI tutor…"></textarea>
+            <div id="tutor-note-msg" class="mt-1" style="font-size:.85rem;"></div>
         </div>
     </main>
 </div>

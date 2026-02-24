@@ -333,6 +333,7 @@ var App = (function ($) {
             .done(function (r) {
                 sessionStorage.setItem('last_result', JSON.stringify(r));
                 sessionStorage.setItem('attempt_id', r.attempt_id);
+                sessionStorage.setItem('last_quiz_topic', $('#quiz-topic').val());
                 showQuizResult(r);
             })
             .fail(function (xhr) {
@@ -373,7 +374,10 @@ var App = (function ($) {
                     $.each(a.recommendations, function (i, w) { html += '<li>' + w + '</li>'; });
                     html += '</ul>';
                 }
-                $('#quiz-analysis').html(html).show();
+                $('#quiz-analysis').html(html);
+                $('#quiz-analysis-box').show();
+                var topic = sessionStorage.getItem('last_quiz_topic') || 'Quiz';
+                savePlanToBackend('analysis', topic, a, 'quiz', attemptId, null);
             })
             .fail(function (xhr) {
                 alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting analysis');
@@ -398,7 +402,10 @@ var App = (function ($) {
                         html += '</ul></div>';
                     });
                 }
-                $('#quiz-analysis').html(html).show();
+                $('#quiz-plan-content').html(html);
+                $('#quiz-plan-box').show();
+                var topic = sessionStorage.getItem('last_quiz_topic') || 'Quiz';
+                savePlanToBackend('study_plan', topic, p, 'quiz', attemptId, null);
             })
             .fail(function (xhr) {
                 alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting plan');
@@ -409,7 +416,8 @@ var App = (function ($) {
     // Quiz retry
     $(document).on('click', '#quiz-retry-btn', function () {
         $('#quiz-result').hide();
-        $('#quiz-analysis').hide();
+        $('#quiz-analysis-box').hide();
+        $('#quiz-plan-box').hide();
         $('#quiz-setup').show();
         $('#quiz-form')[0].reset();
     });
@@ -418,7 +426,7 @@ var App = (function ($) {
     // TEST CENTER (Long-answer + Image upload)
     // ================================================================
 
-    var examState = { examId: 0, questions: [] };
+    var examState = { examId: 0, questions: [], topic: '' };
 
     $(document).on('submit', '#test-create-form', function (e) {
         e.preventDefault();
@@ -432,6 +440,7 @@ var App = (function ($) {
             .done(function (r) {
                 examState.examId = r.exam_id;
                 examState.questions = r.questions;
+                examState.topic = r.topic || topic;
                 renderTestPaper(r.questions, r.topic);
             })
             .fail(function (xhr) {
@@ -503,8 +512,74 @@ var App = (function ($) {
     // Test retry
     $(document).on('click', '#test-retry-btn', function () {
         $('#test-feedback').hide();
+        $('#test-analysis-box').hide();
+        $('#test-plan-box').hide();
         $('#test-setup').show();
         $('#test-create-form')[0].reset();
+    });
+
+    // ── Test Analysis ────────────────────────────────────────────
+    $(document).on('click', '#test-analysis-btn', function () {
+        var btn = $(this);
+        btnLoading(btn, true);
+
+        post('/exam-analysis/analysis.php', { exam_id: examState.examId })
+            .done(function (r) {
+                var a = r.analysis;
+                var html = '';
+                if (a.weaknesses && a.weaknesses.length) {
+                    html += '<h3>Weaknesses</h3><ul>';
+                    $.each(a.weaknesses, function (i, w) { html += '<li>' + w + '</li>'; });
+                    html += '</ul>';
+                }
+                if (a.insights && a.insights.length) {
+                    html += '<h3>Insights</h3><ul>';
+                    $.each(a.insights, function (i, w) { html += '<li>' + w + '</li>'; });
+                    html += '</ul>';
+                }
+                if (a.recommendations && a.recommendations.length) {
+                    html += '<h3>Recommendations</h3><ul>';
+                    $.each(a.recommendations, function (i, w) { html += '<li>' + w + '</li>'; });
+                    html += '</ul>';
+                }
+                $('#test-analysis-content').html(html);
+                $('#test-analysis-box').show();
+
+                // Auto-save to My Plan
+                savePlanToBackend('analysis', examState.topic, a, 'test', null, examState.examId);
+            })
+            .fail(function (xhr) {
+                alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting analysis');
+            })
+            .always(function () { btnLoading(btn, false); });
+    });
+
+    // ── Test Study Plan ──────────────────────────────────────────
+    $(document).on('click', '#test-plan-btn', function () {
+        var btn = $(this);
+        btnLoading(btn, true);
+
+        post('/exam-analysis/plan.php', { exam_id: examState.examId })
+            .done(function (r) {
+                var p = r.plan;
+                var html = '<h3>' + (p.title || 'Study Plan') + '</h3>';
+                if (p.days && p.days.length) {
+                    $.each(p.days, function (i, day) {
+                        html += '<div style="margin-bottom:1rem;"><strong>Day ' + day.day + ':</strong> ' + day.focus + '<ul>';
+                        $.each(day.tasks || [], function (j, t) { html += '<li>' + t + '</li>'; });
+                        html += '</ul></div>';
+                    });
+                }
+                $('#test-plan-content').html(html);
+                $('#test-plan-box').show();
+
+                // Auto-save to My Plan
+                savePlanToBackend('study_plan', examState.topic, p, 'test', null, examState.examId);
+            })
+            .fail(function (xhr) {
+                alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting study plan');
+            })
+            .always(function () { btnLoading(btn, false); });
     });
 
     // ================================================================
@@ -560,6 +635,10 @@ var App = (function ($) {
                 }
                 $('#analysis-content').html(html);
                 $('#analysis-box').show();
+
+                // Auto-save to My Plan
+                var topic = sessionStorage.getItem('last_quiz_topic') || 'Quiz';
+                savePlanToBackend('analysis', topic, a, 'quiz', attemptId, null);
             })
             .fail(function (xhr) {
                 alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting analysis');
@@ -585,6 +664,10 @@ var App = (function ($) {
                 }
                 $('#plan-content').html(html);
                 $('#plan-box').show();
+
+                // Auto-save to My Plan
+                var topic = sessionStorage.getItem('last_quiz_topic') || 'Quiz';
+                savePlanToBackend('study_plan', topic, p, 'quiz', attemptId, null);
             })
             .fail(function (xhr) {
                 alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error getting plan');
@@ -688,12 +771,254 @@ var App = (function ($) {
         $('.main-content > .card').show();
     });
 
+    // ================================================================
+    // TUTOR NOTEPAD – Save notes from tutor page
+    // ================================================================
+
+    $(document).on('click', '#save-tutor-note', function () {
+        var btn = $(this);
+        var title = $('#tutor-note-title').val().trim();
+        var content = $('#tutor-note-content').val().trim();
+
+        if (!title && !content) {
+            showMsg('#tutor-note-msg', 'Please write something first.', true);
+            return;
+        }
+
+        btnLoading(btn, true);
+        post('/notes/save.php', { title: title, content: content })
+            .done(function (r) {
+                showMsg('#tutor-note-msg', '<span class="material-icons" style="font-size:.9rem;vertical-align:middle">check_circle</span> Note saved!', false);
+                // Clear after save
+                setTimeout(function () {
+                    $('#tutor-note-title').val('');
+                    $('#tutor-note-content').val('');
+                    showMsg('#tutor-note-msg', '', false);
+                }, 1500);
+            })
+            .fail(function (xhr) {
+                showMsg('#tutor-note-msg', xhr.responseJSON ? xhr.responseJSON.message : 'Error saving note', true);
+            })
+            .always(function () { btnLoading(btn, false); });
+    });
+
+    // ================================================================
+    // NOTES PAGE – Load saved tutor notes on right panel
+    // ================================================================
+
+    function loadSavedNotes() {
+        get('/notes/list.php').done(function (r) {
+            var notes = r.notes;
+            if (!notes || notes.length === 0) {
+                $('#saved-notes-list').html(
+                    '<div class="text-center" style="color:#9ca3af; padding:2rem;">'
+                    + '<span class="material-icons" style="font-size:2.5rem;color:#d1d5db;">edit_note</span>'
+                    + '<p style="margin-top:.75rem;">No notes yet. Use the notepad in AI Tutor to save notes here.</p>'
+                    + '</div>'
+                );
+                return;
+            }
+
+            var html = '';
+            $.each(notes, function (i, note) {
+                html += '<div class="saved-note-card" data-note-id="' + note.id + '">';
+                html += '<div class="note-card-title">' + $('<span>').text(note.title).html() + '</div>';
+                html += '<div class="note-card-preview">' + $('<span>').text(note.content).html() + '</div>';
+                html += '<div class="note-card-meta">';
+                html += '<span>' + note.updated_at + '</span>';
+                html += '<button class="note-delete-btn" data-note-del="' + note.id + '" title="Delete"><span class="material-icons" style="font-size:1rem">delete</span></button>';
+                html += '</div>';
+                html += '</div>';
+            });
+            $('#saved-notes-list').html(html);
+        });
+    }
+
+    // View note in modal
+    $(document).on('click', '.saved-note-card', function (e) {
+        if ($(e.target).closest('.note-delete-btn').length) return;
+        var title = $(this).find('.note-card-title').text();
+        var preview = $(this).find('.note-card-preview').text();
+
+        var html = '<div class="note-modal-overlay">'
+            + '<div class="note-modal">'
+            + '<div class="note-modal-header">'
+            + '<h2>' + $('<span>').text(title).html() + '</h2>'
+            + '<button class="note-modal-close"><span class="material-icons">close</span></button>'
+            + '</div>'
+            + '<div class="note-modal-body">' + $('<span>').text(preview).html() + '</div>'
+            + '</div></div>';
+        $('body').append(html);
+    });
+
+    $(document).on('click', '.note-modal-close, .note-modal-overlay', function (e) {
+        if (e.target === this || $(this).hasClass('note-modal-close')) {
+            $('.note-modal-overlay').remove();
+        }
+    });
+
+    // Delete saved note
+    $(document).on('click', '.note-delete-btn', function (e) {
+        e.stopPropagation();
+        var btn = $(this);
+        var noteId = btn.data('note-del');
+        if (!confirm('Delete this note?')) return;
+
+        btn.prop('disabled', true);
+        post('/notes/delete.php', { id: noteId })
+            .done(function () {
+                btn.closest('.saved-note-card').fadeOut(300, function () { $(this).remove(); });
+            })
+            .fail(function (xhr) {
+                alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error deleting note');
+                btn.prop('disabled', false);
+            });
+    });
+
+    // ================================================================
+    // SAVE PLAN TO BACKEND (shared helper)
+    // ================================================================
+
+    function savePlanToBackend(type, topic, content, source, attemptId, examId) {
+        post('/saved-plan/save.php', {
+            type: type,
+            topic: topic,
+            content: content,
+            source: source,
+            attempt_id: attemptId,
+            exam_id: examId
+        }).done(function () {
+            // Silent save – show subtle notification
+            var label = type === 'analysis' ? 'Analysis' : 'Study Plan';
+            var toast = $('<div style="position:fixed;bottom:1.5rem;right:1.5rem;background:#10b981;color:#fff;padding:.65rem 1.25rem;border-radius:10px;font-size:.88rem;font-weight:500;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);display:flex;align-items:center;gap:.4rem;">'
+                + '<span class="material-icons" style="font-size:1rem">bookmark_added</span> '
+                + label + ' saved to My Plan</div>');
+            $('body').append(toast);
+            setTimeout(function () { toast.fadeOut(400, function () { $(this).remove(); }); }, 3000);
+        });
+    }
+
+    // ================================================================
+    // MY PLAN PAGE
+    // ================================================================
+
+    var planFilter = 'all';
+
+    function loadMyPlans() {
+        get('/saved-plan/list.php').done(function (r) {
+            var plans = r.plans;
+            if (!plans || plans.length === 0) {
+                $('#plans-list').html('');
+                $('#no-plans').show();
+                return;
+            }
+            $('#no-plans').hide();
+            renderPlans(plans);
+        });
+    }
+
+    function renderPlans(plans) {
+        var filtered = plans;
+        if (planFilter !== 'all') {
+            filtered = plans.filter(function (p) { return p.type === planFilter; });
+        }
+
+        if (filtered.length === 0) {
+            $('#plans-list').html('<div class="text-center mt-2" style="color:#9ca3af;">No ' + (planFilter === 'analysis' ? 'analyses' : 'study plans') + ' saved yet.</div>');
+            return;
+        }
+
+        var html = '';
+        $.each(filtered, function (i, plan) {
+            var typeLabel = plan.type === 'analysis' ? 'Analysis' : 'Study Plan';
+            var typeIcon = plan.type === 'analysis' ? 'bar_chart' : 'menu_book';
+
+            html += '<div class="plan-card" data-plan-id="' + plan.id + '" data-plan-type="' + plan.type + '">';
+            html += '<div class="plan-card-header">';
+            html += '<span class="plan-type-badge ' + plan.type + '"><span class="material-icons" style="font-size:.85rem">' + typeIcon + '</span> ' + typeLabel + '</span>';
+            html += '<button class="plan-delete-btn" data-plan-del="' + plan.id + '" title="Delete"><span class="material-icons">delete</span></button>';
+            html += '</div>';
+            html += '<div class="plan-topic">' + $('<span>').text(plan.topic).html() + '</div>';
+            html += '<div class="plan-source">From: ' + plan.source + '</div>';
+            html += '<div class="plan-body">' + renderPlanContent(plan.type, plan.content) + '</div>';
+            html += '<div class="plan-date">' + plan.created_at + '</div>';
+            html += '</div>';
+        });
+        $('#plans-list').html(html);
+    }
+
+    function renderPlanContent(type, content) {
+        if (!content) return '';
+        var html = '';
+
+        if (type === 'analysis') {
+            if (content.weaknesses && content.weaknesses.length) {
+                html += '<h3>Weaknesses</h3><ul>';
+                $.each(content.weaknesses, function (i, w) { html += '<li>' + w + '</li>'; });
+                html += '</ul>';
+            }
+            if (content.insights && content.insights.length) {
+                html += '<h3>Insights</h3><ul>';
+                $.each(content.insights, function (i, w) { html += '<li>' + w + '</li>'; });
+                html += '</ul>';
+            }
+            if (content.recommendations && content.recommendations.length) {
+                html += '<h3>Recommendations</h3><ul>';
+                $.each(content.recommendations, function (i, w) { html += '<li>' + w + '</li>'; });
+                html += '</ul>';
+            }
+        } else if (type === 'study_plan') {
+            if (content.title) html += '<h3>' + content.title + '</h3>';
+            if (content.days && content.days.length) {
+                $.each(content.days, function (i, day) {
+                    html += '<div style="margin-bottom:.75rem;"><strong>Day ' + day.day + ':</strong> ' + day.focus + '<ul>';
+                    $.each(day.tasks || [], function (j, t) { html += '<li>' + t + '</li>'; });
+                    html += '</ul></div>';
+                });
+            }
+        }
+        return html;
+    }
+
+    // Plan filter tabs
+    $(document).on('click', '.plan-tab', function () {
+        $('.plan-tab').removeClass('active');
+        $(this).addClass('active');
+        planFilter = $(this).data('filter');
+        loadMyPlans();
+    });
+
+    // Delete plan
+    $(document).on('click', '.plan-delete-btn', function (e) {
+        e.stopPropagation();
+        var btn = $(this);
+        var planId = btn.data('plan-del');
+        if (!confirm('Delete this saved plan?')) return;
+
+        btn.prop('disabled', true);
+        post('/saved-plan/delete.php', { id: planId })
+            .done(function () {
+                btn.closest('.plan-card').fadeOut(300, function () {
+                    $(this).remove();
+                    if ($('.plan-card').length === 0) {
+                        $('#no-plans').show();
+                    }
+                });
+            })
+            .fail(function (xhr) {
+                alert(xhr.responseJSON ? xhr.responseJSON.message : 'Error deleting plan');
+                btn.prop('disabled', false);
+            });
+    });
+
     // ── Public API ───────────────────────────────────────────────
     return {
         loadDashboard: loadDashboard,
         loadHistory: loadHistory,
         loadResult: loadResult,
-        initChat: initChat
+        initChat: initChat,
+        loadSavedNotes: loadSavedNotes,
+        loadMyPlans: loadMyPlans
     };
 
 })(jQuery);

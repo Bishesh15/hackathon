@@ -68,7 +68,16 @@ Session::requireAuth();
                     <button class="btn btn-secondary" id="quiz-plan-btn"><span class="material-icons" style="vertical-align:middle;font-size:1.1rem">menu_book</span> Study Plan</button>
                     <button class="btn btn-secondary" id="quiz-retry-btn"><span class="material-icons" style="vertical-align:middle;font-size:1.1rem">refresh</span> Try Again</button>
                 </div>
-                <div id="quiz-analysis" class="notes-output mt-2" style="display:none;"></div>
+            </div>
+
+            <div id="quiz-analysis-box" class="card mt-2" style="display:none;">
+                <div class="card-title mb-2">Analysis</div>
+                <div id="quiz-analysis" class="notes-output"></div>
+            </div>
+
+            <div id="quiz-plan-box" class="card mt-2" style="display:none;">
+                <div class="card-title mb-2">Study Plan</div>
+                <div id="quiz-plan-content" class="notes-output"></div>
             </div>
         </div>
     </main>

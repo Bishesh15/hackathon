@@ -56,6 +56,9 @@ $userInitial = strtoupper(substr($userName, 0, 1));
 
         <div class="nav-section">
             <div class="nav-section-title">Review</div>
+            <a href="/hackathon/public/plan.php" class="nav-item <?= $currentPage === 'plan' ? 'active' : '' ?>">
+                <span class="icon material-icons">bookmark</span> My Plan
+            </a>
             <a href="/hackathon/public/history.php" class="nav-item <?= $currentPage === 'history' ? 'active' : '' ?>">
                 <span class="icon material-icons">history</span> History
             </a>

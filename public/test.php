@@ -59,10 +59,26 @@ Session::requireAuth();
                     <div class="result-score" id="test-score">0%</div>
                     <div class="result-label">AI-graded score</div>
                 </div>
-                <div id="test-feedback-content" class="notes-output mt-2"></div>
-                <div class="result-actions mt-2">
+                <div class="result-actions">
+                    <button class="btn btn-primary" id="test-analysis-btn"><span class="material-icons" style="vertical-align:middle;font-size:1.1rem">bar_chart</span> Get Analysis</button>
+                    <button class="btn btn-secondary" id="test-plan-btn"><span class="material-icons" style="vertical-align:middle;font-size:1.1rem">menu_book</span> Study Plan</button>
                     <button class="btn btn-secondary" id="test-retry-btn"><span class="material-icons" style="vertical-align:middle;font-size:1.1rem">refresh</span> Try Again</button>
                 </div>
+            </div>
+
+            <div id="test-feedback-details" class="card mt-2">
+                <div class="card-title mb-2">Question Feedback</div>
+                <div id="test-feedback-content" class="notes-output"></div>
+            </div>
+
+            <div id="test-analysis-box" class="card mt-2" style="display:none;">
+                <div class="card-title mb-2">Analysis</div>
+                <div id="test-analysis-content" class="notes-output"></div>
+            </div>
+
+            <div id="test-plan-box" class="card mt-2" style="display:none;">
+                <div class="card-title mb-2">Study Plan</div>
+                <div id="test-plan-content" class="notes-output"></div>
             </div>
         </div>
     </main>
